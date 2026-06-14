@@ -1,0 +1,29 @@
+# Maven
+target/
+*.jar
+*.war
+!.mvn/wrapper/maven-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.project
+.classpath
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Java
+*.class
+*.log
+
+# Harness
+.harness/sessions/
+.harness/config.local.yaml
+
+# Secrets
+*.key
+.env
