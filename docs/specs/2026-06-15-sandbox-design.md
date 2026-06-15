@@ -298,12 +298,6 @@ sandbox:
     warmSize: 3
     maxSize: 20
     idleTimeout: 300s
-  approval:
-    enabled: true
-    dangerousPatterns:
-      - rm -rf /
-      - sudo .*
-      - curl.*\|.*(ba)?sh
 ```
 
 ---
@@ -368,7 +362,7 @@ TODO: PRODUCTION — 输出超限（> maxOutputBytes → 截断 + warning）
 | `TODO: PRODUCTION` | 根文件系统只读 + 白名单可写路径 | 安全审计前 |
 | `TODO: PRODUCTION` | PooledDockerSandboxProvider（容器池） | 并发 session > 50 |
 | `TODO: PRODUCTION` | 优雅关闭（SIGTERM → wait → SIGKILL） | 容器泄漏 bug 出现 |
-| `TODO: PRODUCTION` | perilous command approval + pattern detection | 开放外部用户 |
+| `TODO: PRODUCTION` | 危险命令审批（已移至独立 HITL spec：docs/specs/2026-06-15-hitl-design.md） | 开放外部用户 |
 | `TODO: PRODUCTION` | docker-java SDK 替代手写 HTTP | 需要完整 Docker API |
 | `TODO: PRODUCTION` | sandbox 健康检查 + 自动重建 | 容器异常中断 |
 | `TODO: PRODUCTION` | Docker 真实环境集成测试 | CI 环境有 Docker |
