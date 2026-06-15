@@ -3,33 +3,32 @@ package io.github.frank.harness.coding.tool;
 import io.github.frank.harness.ai.protocol.JsonSchema;
 import io.github.frank.harness.ai.protocol.Tool;
 import io.github.frank.harness.ai.protocol.ToolResult;
-import java.nio.file.Path;
+import io.github.frank.harness.core.sandbox.Sandbox;
+
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 public final class BashTool {
     private BashTool() {}
 
-    public static Tool create(Path workdir, Duration timeout) {
-        return new Tool("bash", "Execute a shell command in the working directory.",
+    public static Tool create(Sandbox sandbox, Duration timeout) {
+        return new Tool("bash", "Execute a shell command in the sandbox.",
             new JsonSchema("object", Map.of(
-                "command", new JsonSchema.PropertyDef("string", "Shell command to execute", null)
+                "command", new JsonSchema.PropertyDef("string",
+                    "Shell command to execute (use '&&' to chain)", null)
             ), List.of("command")),
             args -> {
-                try {
-                    var pb = new ProcessBuilder("bash", "-c", args.get("command").asText());
-                    pb.directory(workdir.toFile());
-                    pb.redirectErrorStream(true);
-                    var p = pb.start();
-                    boolean finished = p.waitFor(timeout.toSeconds(), TimeUnit.SECONDS);
-                    if (!finished) { p.destroyForcibly(); return ToolResult.error("Timed out"); }
-                    String out = new String(p.getInputStream().readAllBytes());
+                var result = sandbox.execute(args.get("command").asText(), timeout);
+                if (result.isSuccess()) {
+                    String out = result.stdout();
                     return ToolResult.success(out.isEmpty() ? "(no output)" : out);
-                } catch (Exception e) {
-                    return ToolResult.error(e.getMessage());
                 }
+                if (result.timedOut()) {
+                    return ToolResult.error("Timed out after " + timeout.toSeconds() + "s");
+                }
+                String err = result.stderr();
+                return ToolResult.error(err.isEmpty() ? "Exit code: " + result.exitCode() : err);
             });
     }
 }

@@ -15,6 +15,7 @@ import io.github.frank.harness.core.hook.HookChain;
 import io.github.frank.harness.core.hook.ToolHook;
 import io.github.frank.harness.core.queue.FollowUpQueue;
 import io.github.frank.harness.core.queue.SteeringQueue;
+import io.github.frank.harness.core.sandbox.Sandbox;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -42,12 +43,16 @@ public class Agent {
     private final FollowUpQueue followUp = new FollowUpQueue();
     private final HookChain hooks;
 
+    /** Execution sandbox for isolated command execution. */
+    private final Sandbox sandbox;
+
     private Message systemPrompt;
 
-    public Agent(List<Tool> tools, ModelConfig config, List<ToolHook> hookList) {
+    public Agent(List<Tool> tools, ModelConfig config, List<ToolHook> hookList, Sandbox sandbox) {
         this.tools = List.copyOf(tools);
         this.config = config;
         this.hooks = new HookChain(hookList != null ? hookList : List.of());
+        this.sandbox = sandbox;
     }
 
     // ── Public API ────────────────────────────────────────────
@@ -91,6 +96,7 @@ public class Agent {
     public SteeringQueue getSteering() { return steering; }
     public FollowUpQueue getFollowUp() { return followUp; }
     public HookChain getHooks() { return hooks; }
+    public Sandbox getSandbox() { return sandbox; }
 
     // ── Tool helpers ──────────────────────────────────────────
 
@@ -114,13 +120,15 @@ public class Agent {
         private List<Tool> tools = List.of();
         private ModelConfig config = ModelConfig.of("gpt-4o");
         private List<ToolHook> hooks = List.of();
+        private Sandbox sandbox;
 
         public Builder tools(List<Tool> t) { this.tools = t; return this; }
         public Builder config(ModelConfig c) { this.config = c; return this; }
         public Builder hooks(List<ToolHook> h) { this.hooks = h; return this; }
+        public Builder sandbox(Sandbox s) { this.sandbox = s; return this; }
 
         public Agent build() {
-            return new Agent(tools, config, hooks);
+            return new Agent(tools, config, hooks, sandbox);
         }
     }
 }
