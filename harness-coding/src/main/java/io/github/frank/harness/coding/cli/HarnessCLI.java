@@ -14,6 +14,11 @@ import io.github.frank.harness.coding.resource.ResourceLoader;
 import io.github.frank.harness.coding.session.AgentSession;
 import io.github.frank.harness.coding.session.JsonlSessionStore;
 import io.github.frank.harness.coding.tool.*;
+import io.github.frank.harness.orchestrator.common.WorkerSpec;
+import io.github.frank.harness.orchestrator.orchestrator.Orchestrator;
+import io.github.frank.harness.orchestrator.orchestrator.OrchestratorConfig;
+import io.github.frank.harness.orchestrator.orchestrator.decompose.LlmDecomposer;
+import io.github.frank.harness.orchestrator.orchestrator.synthesize.LlmSynthesizer;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -34,6 +39,8 @@ public class HarnessCLI {
             System.err.println("Error: OPENAI_API_KEY environment variable not set");
             System.exit(1);
         }
+
+        ModelProvider modelProvider = new OpenAIProvider(apiKey);
 
         // ── Sandbox setup ──────────────────────────────────
         String sandboxMode = System.getenv().getOrDefault("HARNESS_SANDBOX", "local");
@@ -59,7 +66,6 @@ public class HarnessCLI {
         var approvalHook = new ApprovalHook(patterns, Duration.ofSeconds(30));
 
         // ── Tools assembly ─────────────────────────────────
-        ModelProvider modelProvider = new OpenAIProvider(apiKey);
         var tools = List.of(
             BashTool.create(sandbox, Duration.ofMinutes(2)),
             ReadTool.create(workdir),
@@ -95,13 +101,33 @@ public class HarnessCLI {
         Sandbox finalSandbox = sandbox;
         Runtime.getRuntime().addShutdownHook(new Thread(finalSandbox::close));
 
+        // ── Orchestrator setup ─────────────────────────────
+        var orchestratorTools = List.of(
+            BashTool.create(sandbox, Duration.ofMinutes(2)),
+            ReadTool.create(workdir),
+            WriteTool.create(workdir),
+            GrepTool.create(workdir),
+            FindTool.create(workdir),
+            LsTool.create(workdir),
+            PatchTool.create(workdir)
+        );
+        var workerSpec = WorkerSpec.of("coder",
+            "You are a coding agent. Complete the assigned task precisely. " +
+            "Work in: " + workdir, orchestratorTools);
+        var orchestrator = new Orchestrator(
+            OrchestratorConfig.DEFAULT,
+            new LlmDecomposer(modelProvider, ModelConfig.of("gpt-4o"), workerSpec),
+            new LlmSynthesizer(modelProvider, ModelConfig.of("gpt-4o")),
+            modelProvider
+        );
+
         // ── Dual-thread REPL ───────────────────────────────
         var loopExecutor = Executors.newSingleThreadExecutor();
         var scanner = new Scanner(System.in);
         System.out.println("🤖 Harness Coding Agent ready. Workdir: " + workdir);
         System.out.println("   Sandbox: " + sandboxMode);
         System.out.println("   Approval: " + (!patterns.isEmpty() ? patterns.size() + " patterns" : "disabled"));
-        System.out.println("Type /exit to quit, /steer <text> to redirect.\n");
+        System.out.println("Type /exit to quit, /steer <text> to redirect, /orchestrate <goal> for multi-agent.\n");
 
         while (true) {
             System.out.print("> ");
@@ -110,6 +136,24 @@ public class HarnessCLI {
             if ("/exit".equals(input)) break;
             if (input.startsWith("/steer ")) {
                 session.steer(input.substring(7));
+                continue;
+            }
+            if (input.startsWith("/orchestrate ")) {
+                String goal = input.substring(13);
+                System.out.println("\n🎯 Orchestrating: " + goal);
+                var result = orchestrator.execute(goal);
+                System.out.println(result.summary());
+                for (var wr : result.workerResults()) {
+                    String status = wr.success() ? "✓" : "✗";
+                    String preview = wr.output().length() > 150
+                        ? wr.output().substring(0, 150).replace("\n", " ") + "..."
+                        : wr.output().replace("\n", " ");
+                    System.out.printf("  [%s] %s%n", status, preview);
+                }
+                long ok = result.workerResults().stream()
+                    .filter(io.github.frank.harness.orchestrator.common.WorkerResult::success).count();
+                System.out.printf("  %d/%d subtasks succeeded.%n",
+                    ok, result.workerResults().size());
                 continue;
             }
 
