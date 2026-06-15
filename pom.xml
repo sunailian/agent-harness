@@ -18,6 +18,7 @@
         <module>harness-ai-langchain4j</module>
         <module>harness-core</module>
         <module>harness-coding</module>
+        <module>harness-orchestrator</module>
     </modules>
 
     <properties>
